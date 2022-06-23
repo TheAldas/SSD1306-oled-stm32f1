@@ -11,7 +11,6 @@
 extern "C" {
 #endif
 
-#include "stm32f1xx.h"
 #include "i2cs.h"
 #include "ssd1306_print.h"
 
