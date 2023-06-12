@@ -1,6 +1,6 @@
 #include "ssd1306_print.h"
 
-static size_t print_int(int n);
+static size_t print_int(int64_t n);
 static size_t print_float(double n, uint16_t precision);
 static size_t print_str(char str[]);
 
@@ -82,7 +82,7 @@ size_t ssd1306_printf(char *str, ...)
   return n;
 }
 
-static size_t print_int(int n)
+static size_t print_int(int64_t n)
 {
   if(n < 0)
     {
