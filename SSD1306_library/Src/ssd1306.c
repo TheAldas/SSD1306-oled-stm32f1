@@ -604,20 +604,20 @@ void ssd1306_set_cursor_row(uint8_t row)
 
 int ssd1306_send_command(uint8_t command)
 {
-  i2cs_start_transmission(OLED_ADDRESS, 0);
-  i2cs_send_byte(SSD_commandByte);
-  i2cs_send_byte(command);
-  i2cs_end_transmission();
+  if(i2cs_start_transmission(OLED_ADDRESS, 0) != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
+  if(i2cs_send_byte(SSD_commandByte) != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
+  if(i2cs_send_byte(command) != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
+  if(i2cs_end_transmission() != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
   return SSD1306_SUCCESS;
 }
 
 int ssd1306_send_command_with_value(uint8_t command, uint8_t value)
 {
-  i2cs_start_transmission(OLED_ADDRESS, 0);
-  i2cs_send_byte(SSD_commandByte);
-  i2cs_send_byte(command);
-  i2cs_send_byte(value);
-  i2cs_end_transmission();
+  if(i2cs_start_transmission(OLED_ADDRESS, 0) != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
+  if(i2cs_send_byte(SSD_commandByte) != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
+  if(i2cs_send_byte(command) != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
+  if(i2cs_send_byte(value) != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
+  if(i2cs_end_transmission() != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
   return SSD1306_SUCCESS;
 }
 
