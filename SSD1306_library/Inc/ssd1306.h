@@ -18,6 +18,11 @@ extern "C" {
 #define SCREEN_HEIGHT 32
 #define SCREEN_WIDTH 128
 
+// USE_QUICK_DISPLAY makes display function
+// send only updated pixels data to the ssd1306 controller,
+// this decreases the time it takes to update the screen at the expense of a bit
+// longer drawing times for large objects
+#define USE_QUICK_DISPLAY
 
 #define SSD_COLOR_BLACK 0
 #define SSD_COLOR_WHITE 1

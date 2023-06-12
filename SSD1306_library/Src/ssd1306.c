@@ -74,9 +74,9 @@ static int abs(int i);
 static void swap_uint8_t(uint8_t *a, uint8_t *b);
 static void swap_int16_t(int16_t *a, int16_t *b);
 
-
-
 static uint8_t screen_buffer[(SCREEN_WIDTH * ((SCREEN_HEIGHT + 7) / 8))] = {0};
+static uint8_t was_buffer_updated = 0;
+static uint16_t updated_pixel_min_x = 255, updated_pixel_min_y = 255, updated_pixel_max_x = 0, updated_pixel_max_y = 0;
 
 static const uint8_t addr_res_cmd_list[] = {
     SSD_commandByte,
@@ -97,7 +97,13 @@ int ssd1306_init(void)
 void ssd1306_draw_pixel(int16_t x, int16_t y, uint8_t color)
 {
   if(x >= screen_width || y >= screen_height || x < 0 || y < 0) return;
-
+#ifdef USE_QUICK_DISPLAY
+  was_buffer_updated = 1;
+  if(updated_pixel_min_x > x) updated_pixel_min_x = x;
+  if(updated_pixel_max_x < x) updated_pixel_max_x = x;
+  if(updated_pixel_min_y > y) updated_pixel_min_y = y;
+  if(updated_pixel_max_y < y) updated_pixel_max_y = y;
+#endif
   switch (color) {
     case SSD_COLOR_BLACK:
       screen_buffer[((int)((y >> 3) * (screen_width)) + x)] &= ~(1 << (y & 0b111));
@@ -503,7 +509,7 @@ void ssd1306_set_cursor(uint8_t column, uint8_t row)
   cursor_coords.y = (font_parameters.char_height * text_parameters.text_scale * row) + (text_parameters.line_spacing * row);
 }
 
-void ssd1306_set_cursor_cord(uint8_t coord_x, uint8_t coord_y)
+void ssd1306_set_cursor_coord(uint8_t coord_x, uint8_t coord_y)
 {
   cursor_coords.x = coord_x;
   cursor_coords.y = coord_y;
@@ -649,18 +655,57 @@ uint8_t ssd1306_get_screen_width() {return screen_width;}
 
 int ssd1306_display(void)
 {
+#ifdef USE_QUICK_DISPLAY
+  if(!was_buffer_updated) return SSD1306_SUCCESS;
+  uint8_t total_updated_pages = (updated_pixel_max_y >> 3) - (updated_pixel_min_y >> 3) + 1;
+  uint8_t *ptr;
+  uint8_t data_frame[] = {
+      SSD_commandByte,
+      SSD_COMMAND_SET_PAGE_ADDRESS,
+      (updated_pixel_min_y >> 3), (updated_pixel_max_y >> 3),
+      SSD_COMMAND_SET_COLUMN_ADDRESS,
+      (updated_pixel_min_x), (updated_pixel_max_x)
+  };
+
+  if(i2cs_start_transmission(OLED_ADDRESS, 0) != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
+  if(i2cs_send_byte_array(data_frame, sizeof(data_frame)) != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
+  if(i2cs_end_transmission() != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
+
+  uint16_t columns_count = (updated_pixel_max_x - updated_pixel_min_x);
+
+  if(i2cs_start_transmission(OLED_ADDRESS, 0) != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
+  if(i2cs_send_byte(SSD_dataByte) != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
+  for(uint8_t pages_count = 0; pages_count < total_updated_pages; pages_count++)
+    {
+      //      columns_count = 1;
+      ptr = (screen_buffer+(SCREEN_WIDTH*((updated_pixel_min_y >> 3) + pages_count))+updated_pixel_min_x);
+      columns_count = (updated_pixel_max_x - updated_pixel_min_x+1);
+      while (columns_count--) {
+	  if(i2cs_send_byte(*ptr++) != I2C_SUCCESS) break;
+      }
+    }
+  if(i2cs_end_transmission() != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
+  updated_pixel_min_x = 255;
+  updated_pixel_min_y = 255;
+  updated_pixel_max_x = 0;
+  updated_pixel_max_y = 0;
+  was_buffer_updated = 0;
+
+#else
   if(i2cs_start_transmission(OLED_ADDRESS, 0) != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
   if(i2cs_send_byte_array(addr_res_cmd_list, sizeof(addr_res_cmd_list)) != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
   if(i2cs_end_transmission() != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
 
   uint16_t columns_count = (screen_width * ((screen_height + 7) / 8));
   uint8_t *ptr = screen_buffer;
+
   if(i2cs_start_transmission(OLED_ADDRESS, 0) != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
   if(i2cs_send_byte(SSD_dataByte) != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
   while (columns_count--) {
       if(i2cs_send_byte(*ptr++) != I2C_SUCCESS) break;
   }
   if(i2cs_end_transmission() != I2C_SUCCESS) return SSD1306_ERROR_COMMUNICATION;
+#endif
   return SSD1306_SUCCESS;
 }
 
@@ -686,6 +731,13 @@ static void ssd1306_fill_display(uint8_t color)
     default:
       break;
   }
+#ifdef USE_QUICK_DISPLAY
+  updated_pixel_min_x = 0;
+  updated_pixel_min_y = 0;
+  updated_pixel_max_x = SCREEN_WIDTH-1;
+  updated_pixel_max_y = SCREEN_HEIGHT-1;
+  was_buffer_updated = 1;
+#endif
 }
 
 void ssd1306_clear_display(void)
